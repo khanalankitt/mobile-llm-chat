@@ -19,7 +19,10 @@ export default function RootLayout() {
         screenOptions={{
           headerShown: false,
         }}
-      />
+      >
+        <Stack.Screen name="models" />
+        <Stack.Screen name="settings" />
+      </Stack>
     </>
   );
 }

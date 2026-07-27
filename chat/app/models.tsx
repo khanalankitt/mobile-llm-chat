@@ -1,6 +1,5 @@
 import { View, Text, FlatList, Pressable, Alert } from "react-native";
 import { useEffect } from "react";
-import * as FileSystem from "expo-file-system/legacy";
 import { useState } from "react";
 import { Download, Pause, Play, X, Check } from "lucide-react-native";
 import { availableModels, getModelPath } from "@/services/modelFileService";
