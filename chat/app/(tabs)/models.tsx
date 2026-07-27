@@ -11,7 +11,7 @@ import {
   pauseDownload,
   resumeDownload,
 } from "@/services/downloadService";
-import { saveModelMetadata } from "@/services/modeRepo";
+import { saveModelMetadata } from "@/services/modelRepo";
 
 export default function ModelsScreen() {
   const [progress, setProgress] = useState<Record<string, number>>({});

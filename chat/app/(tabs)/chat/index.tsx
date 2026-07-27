@@ -8,8 +8,9 @@ import {
 } from "react-native";
 
 import { useEffect, useState } from "react";
-import { getDownloadedModels } from "@/services/modeRepo";
+import { getDownloadedModels } from "@/services/modelRepo";
 import { generateResponse, loadModel } from "@/services/llamaService";
+import { db } from "@/db/client";
 
 type Model = {
   id: string;

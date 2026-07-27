@@ -1,11 +1,10 @@
-import { db } from "./client";
 import {
   CREATE_CONVERSATIONS_TABLE,
   CREATE_MESSAGES_TABLE,
   CREATE_MODELS_TABLE,
 } from "./schema";
 
-export function initializeDatabase() {
+export function runMigrations(db: any) {
   db.execSync(`
     PRAGMA journal_mode = WAL;
 

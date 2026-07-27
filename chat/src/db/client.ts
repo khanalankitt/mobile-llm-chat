@@ -1,3 +1,8 @@
 import * as SQLite from "expo-sqlite";
+import { runMigrations } from "./migrations";
 
-export const db = SQLite.openDatabaseSync("native-local-ai.db");
+export const db = SQLite.openDatabaseSync("local-ai.db");
+
+export async function initializeDatabase() {
+  runMigrations(db);
+}

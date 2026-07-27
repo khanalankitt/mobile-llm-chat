@@ -1,22 +1,57 @@
-let currentModel: string | null = null;
+import { LlamaContext, initLlama } from "llama.rn";
 
-export async function loadModel(path: string) {
-  console.log("Loading model:", path);
+let context: LlamaContext | null = null;
 
-  currentModel = path;
+export async function loadModel(modelPath: string) {
+  try {
+    if (context) {
+      await context.release();
+
+      context = null;
+    }
+
+    console.log("Loading model:", modelPath);
+
+    context = await initLlama({
+      model: modelPath,
+
+      n_ctx: 2048,
+
+      n_threads: 4,
+
+      n_gpu_layers: 0,
+    });
+
+    console.log("Model loaded");
+
+    return true;
+  } catch (error) {
+    console.log("Model loading error", error);
+
+    throw error;
+  }
 }
 
 export async function generateResponse(prompt: string) {
-  if (!currentModel) {
-    throw new Error("No model loaded");
+  if (!context) {
+    throw new Error("Model not loaded");
   }
 
-  return `
-Model loaded successfully.
+  const result = await context.completion({
+    prompt,
 
-You asked:
-${prompt}
+    n_predict: 256,
 
-Real llama.rn inference will be connected next.
- `;
+    temperature: 0.7,
+  });
+
+  return result.text;
+}
+
+export async function unloadModel() {
+  if (context) {
+    await context.release();
+
+    context = null;
+  }
 }
