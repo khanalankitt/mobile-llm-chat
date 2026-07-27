@@ -32,15 +32,25 @@ export async function loadModel(modelPath: string) {
   }
 }
 
-export async function generateResponse(prompt: string) {
+export async function generateResponse(message: string) {
   if (!context) {
     throw new Error("Model not loaded");
   }
 
   const result = await context.completion({
-    prompt,
+    messages: [
+      {
+        role: "system",
+        content: "You are a helpful AI assistant.",
+      },
 
-    n_predict: 256,
+      {
+        role: "user",
+        content: message,
+      },
+    ],
+
+    n_predict: 512,
 
     temperature: 0.7,
   });
