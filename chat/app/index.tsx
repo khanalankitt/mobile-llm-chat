@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
   Modal,
   TouchableWithoutFeedback,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 
 import { useEffect, useState } from "react";
@@ -108,12 +110,12 @@ export default function ChatScreen() {
         >
           <Text
             style={{
-              fontSize: 20,
-              fontWeight: "600",
+              fontSize: 30,
+              fontWeight: "900",
               color: "#1a1a1a",
             }}
           >
-            Offline AI Chat
+            ChatJPT{" "}
           </Text>
 
           {/* Model Selector - Smaller and professional */}
@@ -327,81 +329,89 @@ export default function ChatScreen() {
         </View>
       )}
 
-      {/* Input Area - ChatGPT/Claude style */}
-      <View
-        style={{
-          paddingHorizontal: 20,
-          paddingBottom: 20,
-          paddingTop: 8,
-        }}
+      {/* Input Area - ChatGPT/Claude style with KeyboardAvoidingView */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 48}
       >
         <View
           style={{
-            flexDirection: "row",
-            alignItems: "flex-end",
-            backgroundColor: "#ffffff",
-            borderWidth: 1,
-            borderColor: "#e5e5e5",
-            borderRadius: 16,
-            paddingHorizontal: 16,
-            paddingVertical: 8,
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.05,
-            shadowRadius: 4,
-            elevation: 2,
+            paddingHorizontal: 20,
+            paddingBottom: 20,
+            paddingTop: 8,
           }}
         >
-          <TextInput
-            value={input}
-            onChangeText={setInput}
-            placeholder="Send a message..."
-            placeholderTextColor="#999"
+          <View
             style={{
-              flex: 1,
-              fontSize: 15,
-              color: "#1a1a1a",
-              paddingVertical: 8,
-              paddingRight: 12,
-              maxHeight: 120,
-            }}
-            multiline
-            editable={!!selectedModel}
-          />
-
-          <Pressable
-            onPress={sendMessage}
-            disabled={!input.trim() || !selectedModel || loading}
-            style={({ pressed }) => ({
-              backgroundColor:
-                !input.trim() || !selectedModel || loading
-                  ? "#e5e5e5"
-                  : pressed
-                    ? "#0052a3"
-                    : "#0066cc",
+              flexDirection: "row",
+              alignItems: "flex-end",
+              backgroundColor: "#ffffff",
+              borderWidth: 1,
+              borderColor: "#e5e5e5",
+              borderRadius: 16,
               paddingHorizontal: 16,
               paddingVertical: 8,
-              borderRadius: 12,
-              minWidth: 60,
-              alignItems: "center",
-              justifyContent: "center",
-            })}
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.05,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
           >
-            <Text
+            <TextInput
+              value={input}
+              onChangeText={setInput}
+              placeholder={
+                !selectedModel ? `Select a model first...` : "Send a message..."
+              }
+              placeholderTextColor="#999"
               style={{
-                color:
-                  !input.trim() || !selectedModel || loading
-                    ? "#999"
-                    : "#ffffff",
-                fontWeight: "600",
-                fontSize: 14,
+                flex: 1,
+                fontSize: 15,
+                color: "#1a1a1a",
+                paddingVertical: 8,
+                paddingRight: 12,
+                maxHeight: 120,
               }}
+              multiline
+              editable={!!selectedModel}
+              returnKeyType="send"
+            />
+
+            <Pressable
+              onPress={sendMessage}
+              disabled={!input.trim() || !selectedModel || loading}
+              style={({ pressed }) => ({
+                backgroundColor:
+                  !input.trim() || !selectedModel || loading
+                    ? "#e5e5e5"
+                    : pressed
+                      ? "#0052a3"
+                      : "#0066cc",
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+                borderRadius: 12,
+                minWidth: 60,
+                alignItems: "center",
+                justifyContent: "center",
+              })}
             >
-              Send
-            </Text>
-          </Pressable>
+              <Text
+                style={{
+                  color:
+                    !input.trim() || !selectedModel || loading
+                      ? "#999"
+                      : "#ffffff",
+                  fontWeight: "600",
+                  fontSize: 14,
+                }}
+              >
+                Send
+              </Text>
+            </Pressable>
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }
