@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS models (
     path TEXT NOT NULL,
     size TEXT NOT NULL,
     ramRequiredBytes INTEGER NOT NULL,
+    ramLabel TEXT NOT NULL,
     downloaded INTEGER DEFAULT 0,
     selected INTEGER DEFAULT 0,
     createdAt INTEGER NOT NULL
