@@ -1,22 +1,21 @@
 import { View, Text, FlatList, Pressable, Alert } from "react-native";
 import { useEffect } from "react";
 import { useState } from "react";
-import { Download, Pause, Play, X, Check } from "lucide-react-native";
+import { Download, X, Check, Trash2 } from "lucide-react-native";
 import { availableModels, getModelPath } from "@/services/modelFileService";
+import { cancelDownload, downloadModel } from "@/services/downloadService";
 import {
-  cancelDownload,
-  downloadModel,
-  modelExists,
-  pauseDownload,
-  resumeDownload,
-} from "@/services/downloadService";
-import { saveModelMetadata } from "@/services/modelRepo";
+  deleteDownloadedModel,
+  isModelDownloaded,
+  saveModelMetadata,
+} from "@/services/modelRepo";
+import { subscribeToModelStore } from "@/services/modelEvents";
 
 export default function ModelsScreen() {
   const [progress, setProgress] = useState<Record<string, number>>({});
 
   const [status, setStatus] = useState<
-    Record<string, "idle" | "downloading" | "paused" | "done">
+    Record<string, "idle" | "downloading" | "done">
   >({});
 
   async function startDownload(model: any) {
@@ -38,16 +37,16 @@ export default function ModelsScreen() {
         model.id,
       );
 
-      setStatus((prev) => ({
-        ...prev,
-        [model.id]: "done",
-      }));
-
       await saveModelMetadata({
         ...model,
 
         path: getModelPath(model.filename),
       });
+
+      setStatus((prev) => ({
+        ...prev,
+        [model.id]: "done",
+      }));
     } catch (error) {
       console.log(error);
 
@@ -60,22 +59,51 @@ export default function ModelsScreen() {
     }
   }
 
-  useEffect(() => {
-    async function checkDownloadedModels() {
-      const downloadedStatus: any = {};
+  async function refreshDownloadedStatus() {
+    const downloadedStatus: Record<string, "idle" | "downloading" | "done"> =
+      {};
 
-      for (const model of availableModels) {
-        const exists = await modelExists(model.filename);
+    for (const model of availableModels) {
+      const downloaded = await isModelDownloaded(model.id);
 
-        if (exists) {
-          downloadedStatus[model.id] = "done";
+      downloadedStatus[model.id] = downloaded ? "done" : "idle";
+    }
+
+    setStatus((prev) => {
+      const next = { ...downloadedStatus };
+
+      for (const modelId of Object.keys(prev)) {
+        if (prev[modelId] === "downloading") {
+          next[modelId] = prev[modelId];
         }
       }
 
-      setStatus(downloadedStatus);
-    }
+      return next;
+    });
+  }
 
-    checkDownloadedModels();
+  function confirmDeleteModel(model: any) {
+    Alert.alert("Delete model", `Delete "${model.name}" from this device?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          await deleteDownloadedModel(model.id);
+          setProgress((prev) => ({
+            ...prev,
+            [model.id]: 0,
+          }));
+          await refreshDownloadedStatus();
+        },
+      },
+    ]);
+  }
+
+  useEffect(() => {
+    refreshDownloadedStatus();
+
+    return subscribeToModelStore(refreshDownloadedStatus);
   }, []);
 
   return (
@@ -157,7 +185,7 @@ export default function ModelsScreen() {
                 <Text>{item.ramRequired}</Text>
               </View>
 
-              {state === "downloading" || state === "paused" ? (
+              {state === "downloading" ? (
                 <View
                   style={{
                     marginTop: 15,
@@ -227,72 +255,81 @@ export default function ModelsScreen() {
                 {state === "downloading" && (
                   <>
                     <Pressable
-                      onPress={() => pauseDownload(item.id)}
-                      style={{
-                        flex: 1,
-                        backgroundColor: "#222",
-                        padding: 13,
-                        borderRadius: 12,
-                        alignItems: "center",
+                      onPress={async () => {
+                        await cancelDownload(item.id);
+                        setProgress((prev) => ({
+                          ...prev,
+                          [item.id]: 0,
+                        }));
+                        setStatus((prev) => ({
+                          ...prev,
+                          [item.id]: "idle",
+                        }));
                       }}
-                    >
-                      <Pause color="white" size={18} />
-                    </Pressable>
-
-                    <Pressable
-                      onPress={() => cancelDownload(item.id)}
                       style={{
-                        width: 50,
+                        width: "100%",
                         backgroundColor: "#ff4444",
                         borderRadius: 12,
+                        flexDirection: "row",
+                        gap: 5,
+                        padding: 10,
                         justifyContent: "center",
                         alignItems: "center",
                       }}
                     >
                       <X color="white" />
+                      <Text
+                        style={{
+                          color: "white",
+                          fontSize: 16,
+                          fontWeight: 600,
+                        }}
+                      >
+                        Cancel
+                      </Text>
                     </Pressable>
                   </>
                 )}
 
-                {state === "paused" && (
-                  <Pressable
-                    onPress={() => resumeDownload(item.id)}
-                    style={{
-                      flex: 1,
-                      backgroundColor: "#208AEF",
-                      padding: 13,
-                      borderRadius: 12,
-                      alignItems: "center",
-                    }}
-                  >
-                    <Play color="white" size={18} />
-                  </Pressable>
-                )}
-
                 {state === "done" && (
-                  <View
-                    style={{
-                      flex: 1,
-                      backgroundColor: "#16a34a",
-                      padding: 13,
-                      borderRadius: 12,
-                      alignItems: "center",
-                      flexDirection: "row",
-                      justifyContent: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <Check color="white" />
-
-                    <Text
+                  <>
+                    <View
                       style={{
-                        color: "white",
-                        fontWeight: "700",
+                        flex: 1,
+                        backgroundColor: "#16a34a",
+                        padding: 13,
+                        borderRadius: 12,
+                        alignItems: "center",
+                        flexDirection: "row",
+                        justifyContent: "center",
+                        gap: 6,
                       }}
                     >
-                      Installed
-                    </Text>
-                  </View>
+                      <Check color="white" />
+
+                      <Text
+                        style={{
+                          color: "white",
+                          fontWeight: "700",
+                        }}
+                      >
+                        Installed
+                      </Text>
+                    </View>
+
+                    <Pressable
+                      onPress={() => confirmDeleteModel(item)}
+                      style={{
+                        width: 50,
+                        backgroundColor: "#fee2e2",
+                        borderRadius: 12,
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Trash2 color="#b91c1c" size={18} />
+                    </Pressable>
+                  </>
                 )}
               </View>
             </View>

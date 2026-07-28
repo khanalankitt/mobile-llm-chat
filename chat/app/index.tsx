@@ -11,11 +11,13 @@ import {
   Platform,
 } from "react-native";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getDownloadedModels } from "@/services/modelRepo";
 import { generateResponse, loadModel } from "@/services/llamaService";
 import { ArrowDown } from "lucide-react-native";
 import { Link, router } from "expo-router";
+import { useFocusEffect } from "expo-router";
+import { subscribeToModelStore } from "@/services/modelEvents";
 
 type Model = {
   id: string;
@@ -36,14 +38,25 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
 
-  useEffect(() => {
-    async function init() {
-      const data = (await getDownloadedModels()) as Model[];
-      setModels(data);
-    }
+  const refreshModels = useCallback(async () => {
+    const data = (await getDownloadedModels()) as Model[];
+    setModels(data);
+    setSelectedModel((current) => {
+      if (!current) {
+        return current;
+      }
 
-    init();
+      return data.some((model) => model.id === current.id) ? current : null;
+    });
   }, []);
+
+  useEffect(() => subscribeToModelStore(refreshModels), [refreshModels]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshModels();
+    }, [refreshModels]),
+  );
 
   async function selectModel(model: Model) {
     setSelectedModel(model);

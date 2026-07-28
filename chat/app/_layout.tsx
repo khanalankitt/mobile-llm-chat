@@ -29,7 +29,6 @@ export default function RootLayout() {
       >
         <Stack.Screen name="index" />
         <Stack.Screen name="models" />
-        <Stack.Screen name="settings" />
       </Stack>
 
       <SafeAreaView style={styles.menuButtonWrapper} pointerEvents="box-none">

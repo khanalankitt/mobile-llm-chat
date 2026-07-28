@@ -1,4 +1,19 @@
 import { db } from "@/db/client";
+import { availableModels, getModelPath } from "@/services/modelFileService";
+import { notifyModelStore } from "@/services/modelEvents";
+import * as FileSystem from "expo-file-system/legacy";
+
+export type DownloadedModel = {
+  id: string;
+  name: string;
+  filename: string;
+  path: string;
+  size: string;
+  ramRequired: string;
+  downloaded: number;
+  selected: number;
+  createdAt: number;
+};
 
 export async function saveModelMetadata(model: any) {
   await db.runAsync(
@@ -28,16 +43,32 @@ export async function saveModelMetadata(model: any) {
       Date.now(),
     ],
   );
+  notifyModelStore();
 }
 
 export async function getDownloadedModels() {
-  return await db.getAllAsync(
+  const models = (await db.getAllAsync(
     `
         SELECT *
         FROM models
         WHERE downloaded = 1
+        ORDER BY createdAt ASC
         `,
-  );
+  )) as DownloadedModel[];
+
+  const verifiedModels: DownloadedModel[] = [];
+
+  for (const model of models) {
+    const info = await FileSystem.getInfoAsync(model.path);
+
+    if (info.exists) {
+      verifiedModels.push(model);
+    } else {
+      await deleteModelMetadata(model.id, { notify: false });
+    }
+  }
+
+  return verifiedModels;
 }
 
 export async function getModelById(id: string) {
@@ -51,7 +82,10 @@ export async function getModelById(id: string) {
   );
 }
 
-export async function deleteModelMetadata(id: string) {
+export async function deleteModelMetadata(
+  id: string,
+  options: { notify?: boolean } = {},
+) {
   await db.runAsync(
     `
         DELETE FROM models
@@ -59,4 +93,47 @@ export async function deleteModelMetadata(id: string) {
         `,
     [id],
   );
+
+  if (options.notify !== false) {
+    notifyModelStore();
+  }
+}
+
+export async function deleteDownloadedModel(id: string) {
+  const model = (await getModelById(id)) as DownloadedModel | null;
+  const fallback = availableModels.find((item) => item.id === id);
+  const path =
+    model?.path ?? (fallback ? getModelPath(fallback.filename) : null);
+
+  if (path) {
+    await FileSystem.deleteAsync(path, { idempotent: true });
+  }
+
+  await deleteModelMetadata(id);
+}
+
+export async function deleteAllDownloadedModels() {
+  const modelsDirectory = `${FileSystem.documentDirectory}models/`;
+
+  await FileSystem.deleteAsync(modelsDirectory, { idempotent: true });
+
+  await db.runAsync(`DELETE FROM models`);
+  notifyModelStore();
+}
+
+export async function isModelDownloaded(id: string) {
+  const model = (await getModelById(id)) as DownloadedModel | null;
+
+  if (!model?.downloaded) {
+    return false;
+  }
+
+  const info = await FileSystem.getInfoAsync(model.path);
+
+  if (!info.exists) {
+    await deleteModelMetadata(id, { notify: false });
+    return false;
+  }
+
+  return true;
 }

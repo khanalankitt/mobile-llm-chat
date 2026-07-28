@@ -63,38 +63,13 @@ export async function downloadModel(
     progress: onProgress,
   });
 
-  const result = await download.downloadAsync();
+  const result = await download.downloadAsync().finally(() => {
+    activeDownloads.delete(id);
+  });
 
   if (result?.uri) {
     return result.uri;
   }
-  activeDownloads.delete(id);
-
-  return result?.uri;
-}
-
-export async function pauseDownload(modelId: string) {
-  const task = activeDownloads.get(modelId);
-
-  if (!task) {
-    console.log("No active download found");
-
-    return;
-  }
-
-  await task.download.pauseAsync();
-}
-
-export async function resumeDownload(modelId: string) {
-  const task = activeDownloads.get(modelId);
-
-  if (!task) {
-    console.log("No paused download found");
-
-    return;
-  }
-
-  const result = await task.download.resumeAsync();
 
   return result?.uri;
 }
