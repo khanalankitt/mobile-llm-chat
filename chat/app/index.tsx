@@ -11,7 +11,6 @@ import {
   Alert,
 } from "react-native";
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getDownloadedModels } from "@/services/modelRepo";
 import { generateResponseStream, loadModel } from "@/services/llamaService";
@@ -61,22 +60,6 @@ export default function ChatScreen() {
 
   useEffect(() => subscribeToModelStore(refreshModels), [refreshModels]);
 
-  useEffect(() => {
-    async function restoreLastModel() {
-      const [id, name, path] = await Promise.all([
-        AsyncStorage.getItem("currentModelId"),
-        AsyncStorage.getItem("currentModelName"),
-        AsyncStorage.getItem("currentModelPath"),
-      ]);
-
-      if (id && name && path) {
-        setSelectedModel({ id, name, path } as Model);
-      }
-    }
-
-    restoreLastModel();
-  }, []);
-
   useFocusEffect(
     useCallback(() => {
       refreshModels();
@@ -95,9 +78,6 @@ export default function ChatScreen() {
       await loadModel(model.path);
 
       if (loadRequestId.current === requestId) {
-        AsyncStorage.setItem("currentModelName", model.name);
-        AsyncStorage.setItem("currentModelId", model.id);
-        AsyncStorage.setItem("currentModelPath", model.path);
         setModelLoading(false);
       }
     } catch (error) {
