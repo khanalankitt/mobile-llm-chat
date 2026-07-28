@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "chat",
+    "name": "ChatJPT",
     "slug": "chat",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -39,6 +39,24 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e44fff98-b08f-4964-a97b-f693ef2c0dda"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/e44fff98-b08f-4964-a97b-f693ef2c0dda",
+      "requestHeaders": {
+        "expo-channel-name": "preview"
+      }
     }
   }
 }
