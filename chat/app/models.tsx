@@ -30,13 +30,6 @@ import {
 
 type DownloadState = "idle" | "downloading" | "done";
 
-const RAM_TIER_LABEL: Record<RamTier, string> = {
-  comfortable: "Runs great",
-  runs: "Runs well",
-  risky: "May run slow",
-  unsupported: "Not supported",
-};
-
 const RAM_TIER_COLOR: Record<RamTier, { bg: string; text: string }> = {
   comfortable: { bg: "#dcfce7", text: "#15803d" },
   runs: { bg: "#dbeafe", text: "#1d4ed8" },
@@ -274,27 +267,6 @@ export default function ModelsScreen() {
                     {item.description}
                   </Text>
                 </View>
-
-                {tierStyle && (
-                  <View
-                    style={{
-                      backgroundColor: tierStyle.bg,
-                      paddingHorizontal: 10,
-                      paddingVertical: 5,
-                      borderRadius: 999,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        fontWeight: "700",
-                        color: tierStyle.text,
-                      }}
-                    >
-                      {RAM_TIER_LABEL[fit.ramTier]}
-                    </Text>
-                  </View>
-                )}
               </View>
 
               <View
@@ -323,7 +295,7 @@ export default function ModelsScreen() {
                   </Text>
                 </View>
                 <Text style={{ fontSize: 13, color: "#374151" }}>
-                  {item.ramRequired} needed
+                  {item.ramLabel}
                 </Text>
               </View>
 

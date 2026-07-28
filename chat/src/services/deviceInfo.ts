@@ -23,7 +23,8 @@ export interface CatalogModel {
   description: string;
   tier: ModelTier;
   size: string | number;
-  ramRequired: string | number;
+  ramRequiredBytes: number;
+  ramLabel: string;
   filename: string;
   url: string;
   downloaded: boolean;
@@ -80,9 +81,9 @@ export interface ModelFit {
 // device RAM a model's requirement is allowed to consume before we consider
 // it comfortable / runnable / risky.
 const RAM_TIER_THRESHOLDS = {
-  comfortable: 0.5, // model needs <= 50% of total RAM
-  runs: 0.65, // model needs <= 65% of total RAM
-  risky: 0.8, // model needs <= 80% of total RAM
+  comfortable: 0.65, // model needs <= 65% of total RAM
+  runs: 0.85, // model needs <= 85% of total RAM
+  risky: 1.0, // model needs <= 100% of total RAM
   // anything above 0.8 => "unsupported"
 };
 
@@ -154,7 +155,7 @@ export function evaluateModel(
   model: CatalogModel,
   specs: DeviceSpecs,
 ): ModelFit {
-  const ramRequiredBytes = parseSizeToBytes(model.ramRequired);
+  const ramRequiredBytes = model.ramRequiredBytes;
   const sizeBytes = parseSizeToBytes(model.size);
 
   const ramTier = getRamTier(ramRequiredBytes, specs.totalMemory);
@@ -179,53 +180,33 @@ export function evaluateModel(
   };
 }
 
-/**
- * Evaluates an entire catalog against the device's specs, sorted so the
- * best-fitting, most capable models come first: comfortable-RAM models
- * before risky ones, and within a tier, larger (presumably higher-quality)
- * models before smaller ones — but only among models that actually fit on
- * storage, so a great-fit model you can't download doesn't rank above one
- * you can.
- */
 export function getSuggestedModels(
   catalog: CatalogModel[],
   specs: DeviceSpecs,
 ): ModelFit[] {
-  const tierRank: Record<RamTier, number> = {
-    comfortable: 0,
-    runs: 1,
-    risky: 2,
-    unsupported: 3,
-  };
-
   return catalog
     .map((model) => evaluateModel(model, specs))
     .sort((a, b) => {
-      // Models that fit on disk right now outrank ones that don't.
+      // Models that fit RAM come first.
+      if (a.fitsRam !== b.fitsRam) {
+        return a.fitsRam ? -1 : 1;
+      }
+
+      // Models that fit storage come first.
       if (a.fitsStorage !== b.fitsStorage) {
         return a.fitsStorage ? -1 : 1;
       }
-      // Then by RAM tier (comfortable first).
-      if (tierRank[a.ramTier] !== tierRank[b.ramTier]) {
-        return tierRank[a.ramTier] - tierRank[b.ramTier];
-      }
-      // Then prefer the larger/more capable model within the same tier.
-      return (
-        parseSizeToBytes(b.model.ramRequired) -
-        parseSizeToBytes(a.model.ramRequired)
-      );
+
+      // Among models that fit, recommend the largest one.
+      return b.model.ramRequiredBytes - a.model.ramRequiredBytes;
     });
 }
 
-/**
- * Convenience helper: the single best model for this device right now, or
- * null if nothing in the catalog fits even the "risky" RAM tier.
- */
 export function getBestModel(
   catalog: CatalogModel[],
   specs: DeviceSpecs,
 ): ModelFit | null {
   const suggestions = getSuggestedModels(catalog, specs);
-  const best = suggestions.find((fit) => fit.fitsRam && fit.fitsStorage);
-  return best ?? null;
+
+  return suggestions.find((fit) => fit.fitsRam && fit.fitsStorage) ?? null;
 }

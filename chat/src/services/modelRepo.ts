@@ -9,7 +9,8 @@ export type DownloadedModel = {
   filename: string;
   path: string;
   size: string;
-  ramRequired: string;
+  ramRequiredBytes: number;
+  ramLabel: string;
   downloaded: number;
   selected: number;
   createdAt: number;
@@ -25,12 +26,13 @@ export async function saveModelMetadata(model: any) {
             filename,
             path,
             size,
-            ramRequired,
+            ramRequiredBytes,
+            ramLabel,
             downloaded,
             createdAt
         )
         VALUES
-        (?,?,?,?,?,?,?,?)
+        (?,?,?,?,?,?,?,?,?)
         `,
     [
       model.id,
