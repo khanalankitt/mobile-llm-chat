@@ -237,6 +237,7 @@ export default function ChatScreen() {
           ) : (
             <Pressable
               onPress={() => setShowDropdown(true)}
+              disabled={modelLoading}
               style={{
                 flexDirection: "row",
                 alignItems: "center",

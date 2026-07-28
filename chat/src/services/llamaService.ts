@@ -2,78 +2,88 @@ import { LlamaContext, initLlama } from "llama.rn";
 
 let context: LlamaContext | null = null;
 
-export async function loadModel(modelPath: string) {
-  try {
-    if (context) {
-      await context.release();
+let operationQueue: Promise<void> = Promise.resolve();
 
-      context = null;
-    }
+function enqueue<T>(operation: () => Promise<T>): Promise<T> {
+  const result = operationQueue.then(operation);
+
+  operationQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+
+async function releaseCurrentContext() {
+  if (context) {
+    console.log("Releasing previous model");
+    await context.release();
+    context = null;
+  }
+}
+
+export function loadModel(modelPath: string) {
+  return enqueue(async () => {
+    await releaseCurrentContext();
 
     console.log("Loading model:", modelPath);
 
-    context = await initLlama({
-      model: modelPath,
+    try {
+      context = await initLlama({
+        model: modelPath,
+        n_ctx: 2048,
+        n_threads: 4,
+        n_gpu_layers: 0,
+      });
 
-      n_ctx: 2048,
-
-      n_threads: 4,
-
-      n_gpu_layers: 0,
-    });
-
-    console.log("Model loaded");
-
-    return true;
-  } catch (error) {
-    console.log("Model loading error", error);
-
-    throw error;
-  }
+      console.log("Model loaded");
+      return true;
+    } catch (error) {
+      console.log("Model loading error", error);
+      context = null;
+      throw error;
+    }
+  });
 }
 
-export async function generateResponseStream(
+export function unloadModel() {
+  return enqueue(async () => {
+    await releaseCurrentContext();
+  });
+}
+
+export function generateResponseStream(
   message: string,
   onToken: (text: string) => void,
 ) {
-  if (!context) {
-    throw new Error("Model not loaded");
-  }
+  return enqueue(async () => {
+    if (!context) {
+      throw new Error("Model not loaded");
+    }
 
-  const result = await context.completion(
-    {
-      messages: [
-        {
-          role: "system",
-          content: "You are a helpful AI assistant.",
-        },
+    const result = await context.completion(
+      {
+        messages: [
+          {
+            role: "system",
+            content: "You are a helpful AI assistant.",
+          },
+          {
+            role: "user",
+            content: message,
+          },
+        ],
+        n_predict: 512,
+        temperature: 0.7,
+      },
+      (data) => {
+        const token = typeof data.token === "string" ? data.token : "";
+        if (token) {
+          onToken(token);
+        }
+      },
+    );
 
-        {
-          role: "user",
-          content: message,
-        },
-      ],
-
-      n_predict: 512,
-
-      temperature: 0.7,
-    },
-    (data) => {
-      const token = typeof data.token === "string" ? data.token : "";
-
-      if (token) {
-        onToken(token);
-      }
-    },
-  );
-
-  return result.text;
-}
-
-export async function unloadModel() {
-  if (context) {
-    await context.release();
-
-    context = null;
-  }
+    return result.text;
+  });
 }
