@@ -1,7 +1,15 @@
 import { View, Text, FlatList, Pressable, Alert } from "react-native";
-import { useEffect } from "react";
-import { useState } from "react";
-import { Download, X, Check, Trash2 } from "lucide-react-native";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Download,
+  X,
+  Check,
+  Trash2,
+  HardDrive,
+  Star,
+  MemoryStick,
+  DatabaseArrowDown,
+} from "lucide-react-native";
 import { availableModels, getModelPath } from "@/services/modelFileService";
 import { cancelDownload, downloadModel } from "@/services/downloadService";
 import {
@@ -10,79 +18,145 @@ import {
   saveModelMetadata,
 } from "@/services/modelRepo";
 import { subscribeToModelStore } from "@/services/modelEvents";
+import {
+  getDeviceSpecs,
+  getSuggestedModels,
+  getBestModel,
+  formatBytes,
+  DeviceSpecs,
+  ModelFit,
+  RamTier,
+} from "@/services/deviceInfo";
+
+type DownloadState = "idle" | "downloading" | "done";
+
+const RAM_TIER_LABEL: Record<RamTier, string> = {
+  comfortable: "Runs great",
+  runs: "Runs well",
+  risky: "May run slow",
+  unsupported: "Not supported",
+};
+
+const RAM_TIER_COLOR: Record<RamTier, { bg: string; text: string }> = {
+  comfortable: { bg: "#dcfce7", text: "#15803d" },
+  runs: { bg: "#dbeafe", text: "#1d4ed8" },
+  risky: { bg: "#fef3c7", text: "#b45309" },
+  unsupported: { bg: "#fee2e2", text: "#b91c1c" },
+};
 
 export default function ModelsScreen() {
   const [progress, setProgress] = useState<Record<string, number>>({});
+  const [status, setStatus] = useState<Record<string, DownloadState>>({});
+  const [specs, setSpecs] = useState<DeviceSpecs | null>(null);
+  const [specsLoading, setSpecsLoading] = useState(true);
 
-  const [status, setStatus] = useState<
-    Record<string, "idle" | "downloading" | "done">
-  >({});
-
-  async function startDownload(model: any) {
+  async function refreshSpecs(forceRefresh = false) {
+    setSpecsLoading(true);
     try {
-      setStatus((prev) => ({
-        ...prev,
-        [model.id]: "downloading",
-      }));
+      const result = await getDeviceSpecs(forceRefresh);
+      setSpecs(result);
+    } catch (error) {
+      console.log("Failed to read device specs", error);
+    } finally {
+      setSpecsLoading(false);
+    }
+  }
+
+  async function refreshDownloadedStatus() {
+    const downloadedStatus: Record<string, DownloadState> = {};
+
+    for (const model of availableModels) {
+      const downloaded = await isModelDownloaded(model.id);
+      downloadedStatus[model.id] = downloaded ? "done" : "idle";
+    }
+
+    setStatus((prev) => {
+      const next = { ...downloadedStatus };
+      for (const modelId of Object.keys(prev)) {
+        if (prev[modelId] === "downloading") {
+          next[modelId] = prev[modelId];
+        }
+      }
+      return next;
+    });
+  }
+
+  useEffect(() => {
+    refreshDownloadedStatus();
+    refreshSpecs();
+
+    return subscribeToModelStore(refreshDownloadedStatus);
+  }, []);
+
+  // Rank the catalog against this device's specs. Recomputed only when
+  // specs change, not on every render.
+  const suggestions = useMemo<ModelFit[]>(() => {
+    if (!specs) return [];
+    return getSuggestedModels(availableModels, specs);
+  }, [specs]);
+
+  const bestFit = useMemo(() => {
+    if (!specs) return null;
+    return getBestModel(availableModels, specs);
+  }, [specs]);
+
+  async function runDownload(model: (typeof availableModels)[number]) {
+    try {
+      setStatus((prev) => ({ ...prev, [model.id]: "downloading" }));
 
       await downloadModel(
         model.url,
         model.filename,
         (value) => {
-          setProgress((prev) => ({
-            ...prev,
-            [model.id]: value,
-          }));
+          setProgress((prev) => ({ ...prev, [model.id]: value }));
         },
         model.id,
       );
 
       await saveModelMetadata({
         ...model,
-
         path: getModelPath(model.filename),
       });
 
-      setStatus((prev) => ({
-        ...prev,
-        [model.id]: "done",
-      }));
+      setStatus((prev) => ({ ...prev, [model.id]: "done" }));
+      refreshSpecs(true); // storage just changed
     } catch (error) {
       console.log(error);
-
       Alert.alert("Download failed", "Unable to download model");
-
-      setStatus((prev) => ({
-        ...prev,
-        [model.id]: "idle",
-      }));
+      setStatus((prev) => ({ ...prev, [model.id]: "idle" }));
     }
   }
 
-  async function refreshDownloadedStatus() {
-    const downloadedStatus: Record<string, "idle" | "downloading" | "done"> =
-      {};
-
-    for (const model of availableModels) {
-      const downloaded = await isModelDownloaded(model.id);
-
-      downloadedStatus[model.id] = downloaded ? "done" : "idle";
+  function startDownload(
+    model: (typeof availableModels)[number],
+    fit: ModelFit,
+  ) {
+    if (!fit.fitsStorage) {
+      Alert.alert(
+        "Not enough storage",
+        `This model needs ${formatBytes(
+          fit.storageShortfall,
+        )} more free space than you currently have.`,
+      );
+      return;
     }
 
-    setStatus((prev) => {
-      const next = { ...downloadedStatus };
+    if (!fit.fitsRam) {
+      Alert.alert(
+        "May not run well",
+        "This model is larger than your device's RAM comfortably supports. It may run slowly, or the app could crash while using it. Download anyway?",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Download Anyway", onPress: () => runDownload(model) },
+        ],
+      );
+      return;
+    }
 
-      for (const modelId of Object.keys(prev)) {
-        if (prev[modelId] === "downloading") {
-          next[modelId] = prev[modelId];
-        }
-      }
-
-      return next;
-    });
+    runDownload(model);
   }
 
-  function confirmDeleteModel(model: any) {
+  function confirmDeleteModel(model: (typeof availableModels)[number]) {
     Alert.alert("Delete model", `Delete "${model.name}" from this device?`, [
       { text: "Cancel", style: "cancel" },
       {
@@ -90,88 +164,138 @@ export default function ModelsScreen() {
         style: "destructive",
         onPress: async () => {
           await deleteDownloadedModel(model.id);
-          setProgress((prev) => ({
-            ...prev,
-            [model.id]: 0,
-          }));
+          setProgress((prev) => ({ ...prev, [model.id]: 0 }));
           await refreshDownloadedStatus();
+          refreshSpecs(true); // storage just freed up
         },
       },
     ]);
   }
 
-  useEffect(() => {
-    refreshDownloadedStatus();
-
-    return subscribeToModelStore(refreshDownloadedStatus);
-  }, []);
-
   return (
-    <View
-      style={{
-        flex: 1,
-        padding: 20,
-        justifyContent: "center",
-        alignItems: "center",
-        backgroundColor: "#fff",
-        paddingTop: 50,
-      }}
-    >
-      <Text
-        style={{
-          fontSize: 25,
-          fontWeight: "800",
-        }}
-      >
-        Models
-      </Text>
+    <View style={{ flex: 1, backgroundColor: "#fff", paddingTop: 50 }}>
+      <View style={{ paddingHorizontal: 20, alignItems: "center" }}>
+        <Text style={{ fontSize: 25, fontWeight: "800" }}>Models</Text>
+        <Text style={{ color: "#666", marginBottom: 16, fontSize: 14 }}>
+          Download offline AI models
+        </Text>
+      </View>
 
-      <Text
+      {/* Device specs summary */}
+      <View
         style={{
-          color: "#666",
-          marginBottom: 20,
-          fontSize: 14,
+          marginHorizontal: 20,
+          marginBottom: 16,
+          padding: 14,
+          borderRadius: 16,
+          backgroundColor: "#f5f7fb",
+          flexDirection: "row",
+          justifyContent: "space-around",
         }}
       >
-        Download offline AI models
-      </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <MemoryStick size={18} color="#374151" />
+          <Text style={{ fontSize: 13, color: "#374151", fontWeight: "600" }}>
+            {specsLoading || !specs
+              ? "Checking RAM…"
+              : `${formatBytes(specs.totalMemory)} RAM`}
+          </Text>
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <HardDrive size={16} color="#374151" />
+          <Text style={{ fontSize: 13, color: "#374151", fontWeight: "600" }}>
+            {specsLoading || !specs
+              ? "Checking storage…"
+              : `${formatBytes(specs.freeStorage)} free`}
+          </Text>
+        </View>
+      </View>
 
       <FlatList
         showsVerticalScrollIndicator={false}
-        data={availableModels}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => {
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 30 }}
+        data={
+          specs
+            ? suggestions
+            : availableModels.map((model) => ({ model }) as ModelFit)
+        }
+        keyExtractor={(fit) => fit.model.id}
+        renderItem={({ item: fit }) => {
+          const item = fit.model;
           const state = status[item.id] ?? "idle";
-
           const percent = Math.floor((progress[item.id] ?? 0) * 100);
+          const isRecommended = bestFit?.model.id === item.id;
+          const tierStyle = specs ? RAM_TIER_COLOR[fit.ramTier] : null;
 
           return (
             <View
               style={{
-                borderWidth: 1,
-                borderColor: "#e5e5e5",
+                borderWidth: isRecommended ? 2 : 1,
+                borderColor: isRecommended ? "#208AEF" : "#e5e5e5",
                 borderRadius: 20,
                 padding: 18,
                 marginBottom: 16,
               }}
             >
-              <Text
-                style={{
-                  fontSize: 19,
-                  fontWeight: "700",
-                }}
-              >
-                {item.name}
-              </Text>
+              {isRecommended && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 4,
+                    marginBottom: 8,
+                  }}
+                >
+                  <Star size={14} color="#208AEF" fill="#208AEF" />
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: "700",
+                      color: "#208AEF",
+                    }}
+                  >
+                    Recommended for your device
+                  </Text>
+                </View>
+              )}
 
-              <Text
+              <View
                 style={{
-                  color: "#555",
-                  marginTop: 6,
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
                 }}
               >
-                {item.description}
-              </Text>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={{ fontSize: 19, fontWeight: "700" }}>
+                    {item.name}
+                  </Text>
+                  <Text style={{ color: "#555", marginTop: 6, fontSize: 12 }}>
+                    {item.description}
+                  </Text>
+                </View>
+
+                {tierStyle && (
+                  <View
+                    style={{
+                      backgroundColor: tierStyle.bg,
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: 999,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: "700",
+                        color: tierStyle.text,
+                      }}
+                    >
+                      {RAM_TIER_LABEL[fit.ramTier]}
+                    </Text>
+                  </View>
+                )}
+              </View>
 
               <View
                 style={{
@@ -180,17 +304,37 @@ export default function ModelsScreen() {
                   marginTop: 12,
                 }}
               >
-                <Text>{item.size}</Text>
-
-                <Text>{item.ramRequired}</Text>
-              </View>
-
-              {state === "downloading" ? (
                 <View
                   style={{
-                    marginTop: 15,
+                    flexDirection: "row",
+                    justifyContent: "center",
+                    alignItems: "center",
                   }}
                 >
+                  <DatabaseArrowDown size={16} color="#374151" />
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      color: "#374151",
+                      marginLeft: 4,
+                    }}
+                  >
+                    {item.size} download
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 13, color: "#374151" }}>
+                  {item.ramRequired} needed
+                </Text>
+              </View>
+
+              {!fit.fitsStorage && state === "idle" && (
+                <Text style={{ color: "#b91c1c", fontSize: 12, marginTop: 8 }}>
+                  Needs {formatBytes(fit.storageShortfall)} more free storage
+                </Text>
+              )}
+
+              {state === "downloading" ? (
+                <View style={{ marginTop: 15 }}>
                   <View
                     style={{
                       height: 8,
@@ -207,30 +351,19 @@ export default function ModelsScreen() {
                       }}
                     />
                   </View>
-
-                  <Text
-                    style={{
-                      marginTop: 8,
-                    }}
-                  >
-                    {percent}% downloaded
-                  </Text>
+                  <Text style={{ marginTop: 8 }}>{percent}% downloaded</Text>
                 </View>
               ) : null}
 
-              <View
-                style={{
-                  flexDirection: "row",
-                  gap: 10,
-                  marginTop: 15,
-                }}
-              >
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 15 }}>
                 {state === "idle" && (
                   <Pressable
-                    onPress={() => startDownload(item)}
+                    onPress={() => startDownload(item, fit)}
+                    disabled={!specs}
                     style={{
                       flex: 1,
-                      backgroundColor: "#208AEF",
+                      backgroundColor:
+                        specs && !fit.fitsStorage ? "#93c5fd" : "#208AEF",
                       padding: 13,
                       borderRadius: 12,
                       alignItems: "center",
@@ -240,55 +373,41 @@ export default function ModelsScreen() {
                     }}
                   >
                     <Download color="white" size={18} />
-
-                    <Text
-                      style={{
-                        color: "white",
-                        fontWeight: "700",
-                      }}
-                    >
+                    <Text style={{ color: "white", fontWeight: "700" }}>
                       Download
                     </Text>
                   </Pressable>
                 )}
 
                 {state === "downloading" && (
-                  <>
-                    <Pressable
-                      onPress={async () => {
-                        await cancelDownload(item.id);
-                        setProgress((prev) => ({
-                          ...prev,
-                          [item.id]: 0,
-                        }));
-                        setStatus((prev) => ({
-                          ...prev,
-                          [item.id]: "idle",
-                        }));
-                      }}
+                  <Pressable
+                    onPress={async () => {
+                      await cancelDownload(item.id);
+                      setProgress((prev) => ({ ...prev, [item.id]: 0 }));
+                      setStatus((prev) => ({ ...prev, [item.id]: "idle" }));
+                    }}
+                    style={{
+                      width: "100%",
+                      backgroundColor: "#ff4444",
+                      borderRadius: 12,
+                      flexDirection: "row",
+                      gap: 5,
+                      padding: 10,
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <X color="white" />
+                    <Text
                       style={{
-                        width: "100%",
-                        backgroundColor: "#ff4444",
-                        borderRadius: 12,
-                        flexDirection: "row",
-                        gap: 5,
-                        padding: 10,
-                        justifyContent: "center",
-                        alignItems: "center",
+                        color: "white",
+                        fontSize: 16,
+                        fontWeight: "600",
                       }}
                     >
-                      <X color="white" />
-                      <Text
-                        style={{
-                          color: "white",
-                          fontSize: 16,
-                          fontWeight: 600,
-                        }}
-                      >
-                        Cancel
-                      </Text>
-                    </Pressable>
-                  </>
+                      Cancel
+                    </Text>
+                  </Pressable>
                 )}
 
                 {state === "done" && (
@@ -306,13 +425,7 @@ export default function ModelsScreen() {
                       }}
                     >
                       <Check color="white" />
-
-                      <Text
-                        style={{
-                          color: "white",
-                          fontWeight: "700",
-                        }}
-                      >
+                      <Text style={{ color: "white", fontWeight: "700" }}>
                         Installed
                       </Text>
                     </View>

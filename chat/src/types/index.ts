@@ -21,8 +21,8 @@ export interface LocalModel {
   name: string;
   description: string;
   tier: ModelTier;
-  size: string;
-  ramRequired: string;
+  size: string | number;
+  ramRequired: string | number;
   filename: string;
   url: string;
   downloaded: boolean;
