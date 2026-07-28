@@ -306,24 +306,95 @@ export default function ModelsScreen() {
               )}
 
               {state === "downloading" ? (
-                <View style={{ marginTop: 15 }}>
+                <View
+                  style={{
+                    marginTop: 15,
+                    padding: 14,
+                    backgroundColor: "#f8fafc",
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: "#e5e7eb",
+                  }}
+                >
+                  {/* Progress Header */}
                   <View
                     style={{
-                      height: 8,
-                      backgroundColor: "#eee",
-                      borderRadius: 10,
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 10,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: "700",
+                        color: "#111827",
+                      }}
+                    >
+                      Downloading model
+                    </Text>
+
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: "700",
+                        color: "#208AEF",
+                      }}
+                    >
+                      {percent}%
+                    </Text>
+                  </View>
+
+                  {/* Progress Bar */}
+                  <View
+                    style={{
+                      height: 10,
+                      backgroundColor: "#e5e7eb",
+                      borderRadius: 20,
+                      overflow: "hidden",
                     }}
                   >
                     <View
                       style={{
                         width: `${percent}%`,
-                        height: 8,
+                        height: "100%",
                         backgroundColor: "#208AEF",
-                        borderRadius: 10,
+                        borderRadius: 20,
                       }}
                     />
                   </View>
-                  <Text style={{ marginTop: 8 }}>{percent}% downloaded</Text>
+
+                  {/* Info */}
+                  <View
+                    style={{
+                      marginTop: 12,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 10,
+                        backgroundColor: "#208AEF",
+                      }}
+                    />
+
+                    <Text
+                      style={{
+                        flex: 1,
+                        fontSize: 12,
+                        color: "#64748b",
+                        lineHeight: 18,
+                      }}
+                    >
+                      Keep this screen open while downloading. This is a
+                      one-time setup process. Background download is not supported yet.
+                    </Text>
+                  </View>
                 </View>
               ) : null}
 
