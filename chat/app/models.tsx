@@ -83,15 +83,16 @@ export default function ModelsScreen() {
       style={{
         flex: 1,
         padding: 20,
+        justifyContent: "center",
+        alignItems: "center",
         backgroundColor: "#fff",
         paddingTop: 50,
       }}
     >
       <Text
         style={{
-          fontSize: 28,
+          fontSize: 25,
           fontWeight: "800",
-          marginBottom: 5,
         }}
       >
         Models
@@ -101,6 +102,7 @@ export default function ModelsScreen() {
         style={{
           color: "#666",
           marginBottom: 20,
+          fontSize: 14,
         }}
       >
         Download offline AI models

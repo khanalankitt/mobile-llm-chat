@@ -105,19 +105,9 @@ export default function ChatScreen() {
           style={{
             flexDirection: "row",
             alignItems: "center",
-            justifyContent: "space-between",
+            justifyContent: "flex-end",
           }}
         >
-          <Text
-            style={{
-              fontSize: 30,
-              fontWeight: "900",
-              color: "#1a1a1a",
-            }}
-          >
-            ChatJPT{" "}
-          </Text>
-
           {/* Model Selector - Smaller and professional */}
           <Pressable
             onPress={() => setShowDropdown(true)}
