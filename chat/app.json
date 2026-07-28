@@ -18,6 +18,7 @@
       },
       "permissions": ["android.permission.INTERNET"],
       "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.ankitkhanal2.chat"
     },
     "web": {

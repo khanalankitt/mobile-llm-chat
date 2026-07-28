@@ -4,7 +4,6 @@ import {
   TextInput,
   Pressable,
   FlatList,
-  ActivityIndicator,
   Modal,
   TouchableWithoutFeedback,
   KeyboardAvoidingView,
@@ -12,9 +11,10 @@ import {
   Alert,
 } from "react-native";
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getDownloadedModels } from "@/services/modelRepo";
-import { generateResponse, loadModel } from "@/services/llamaService";
+import { generateResponseStream, loadModel } from "@/services/llamaService";
 import { ArrowDown } from "lucide-react-native";
 import { Link, router } from "expo-router";
 import { useFocusEffect } from "expo-router";
@@ -40,6 +40,7 @@ export default function ChatScreen() {
   const [modelLoading, setModelLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const loadRequestId = useRef(0);
+  const messagesListRef = useRef<FlatList<Message> | null>(null);
 
   const refreshModels = useCallback(async () => {
     const data = (await getDownloadedModels()) as Model[];
@@ -60,6 +61,22 @@ export default function ChatScreen() {
 
   useEffect(() => subscribeToModelStore(refreshModels), [refreshModels]);
 
+  useEffect(() => {
+    async function restoreLastModel() {
+      const [id, name, path] = await Promise.all([
+        AsyncStorage.getItem("currentModelId"),
+        AsyncStorage.getItem("currentModelName"),
+        AsyncStorage.getItem("currentModelPath"),
+      ]);
+
+      if (id && name && path) {
+        setSelectedModel({ id, name, path } as Model);
+      }
+    }
+
+    restoreLastModel();
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       refreshModels();
@@ -78,6 +95,9 @@ export default function ChatScreen() {
       await loadModel(model.path);
 
       if (loadRequestId.current === requestId) {
+        AsyncStorage.setItem("currentModelName", model.name);
+        AsyncStorage.setItem("currentModelId", model.id);
+        AsyncStorage.setItem("currentModelPath", model.path);
         setModelLoading(false);
       }
     } catch (error) {
@@ -86,47 +106,92 @@ export default function ChatScreen() {
       if (loadRequestId.current === requestId) {
         setSelectedModel(null);
         setModelLoading(false);
-        Alert.alert("Model failed to load", "Please try selecting the model again.");
+        Alert.alert(
+          "Model failed to load",
+          "Please try selecting the model again.",
+        );
       }
     }
   }
 
   async function sendMessage() {
-    if (!input.trim() || !selectedModel || modelLoading) return;
+    const prompt = input.trim();
+
+    if (!prompt || !selectedModel || modelLoading || loading) return;
 
     const userMessage: Message = {
       role: "user",
-      content: input,
+      content: prompt,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    const assistantMessage: Message = {
+      role: "assistant",
+      content: "",
+    };
+
+    setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setInput("");
     setLoading(true);
 
-    try {
-      const response = await generateResponse(input);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: response,
-        },
-      ]);
-    } catch (error) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Error generating response",
-        },
-      ]);
-    }
+    let streamedResponse = "";
 
-    setLoading(false);
+    try {
+      const response = await generateResponseStream(prompt, (token) => {
+        streamedResponse += token;
+
+        setMessages((prev) => {
+          const next = [...prev];
+          const lastIndex = next.length - 1;
+
+          if (next[lastIndex]?.role === "assistant") {
+            next[lastIndex] = {
+              ...next[lastIndex],
+              content: next[lastIndex].content + token,
+            };
+          }
+
+          return next;
+        });
+      });
+
+      if (!streamedResponse.trim() && response) {
+        setMessages((prev) => {
+          const next = [...prev];
+          const lastIndex = next.length - 1;
+
+          if (next[lastIndex]?.role === "assistant") {
+            next[lastIndex] = {
+              ...next[lastIndex],
+              content: response,
+            };
+          }
+
+          return next;
+        });
+      }
+    } catch (error) {
+      setMessages((prev) => {
+        const next = [...prev];
+        const lastIndex = next.length - 1;
+
+        if (next[lastIndex]?.role === "assistant") {
+          next[lastIndex] = {
+            ...next[lastIndex],
+            content: "Error generating response",
+          };
+        }
+
+        return next;
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <View
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={0}
       style={{
         flex: 1,
         backgroundColor: "#f7f7f8",
@@ -340,15 +405,20 @@ export default function ChatScreen() {
         </View>
       ) : (
         <FlatList
+          ref={messagesListRef}
           data={messages}
           keyExtractor={(_, index) => index.toString()}
+          keyboardShouldPersistTaps="handled"
+          onContentSizeChange={() => {
+            messagesListRef.current?.scrollToEnd({ animated: true });
+          }}
           style={{
             flex: 1,
             paddingHorizontal: 20,
             paddingTop: 20,
           }}
           contentContainerStyle={{
-            paddingBottom: 20,
+            paddingBottom: 12,
           }}
           renderItem={({ item }) => (
             <View
@@ -371,106 +441,98 @@ export default function ChatScreen() {
                   lineHeight: 22,
                 }}
               >
-                {item.content}
+                {item.content || "Thinking..."}
               </Text>
             </View>
           )}
         />
       )}
 
-      {loading && (
-        <View style={{ paddingVertical: 8, alignItems: "center" }}>
-          <ActivityIndicator size="small" color="#0066cc" />
-        </View>
-      )}
-
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 48}
+      <View
+        style={{
+          paddingHorizontal: 20,
+          paddingBottom: 20,
+          paddingTop: 8,
+          backgroundColor: "#f7f7f8",
+        }}
       >
         <View
           style={{
-            paddingHorizontal: 20,
-            paddingBottom: 20,
-            paddingTop: 8,
+            flexDirection: "row",
+            alignItems: "flex-end",
+            backgroundColor: "#ffffff",
+            borderWidth: 1,
+            borderColor: "#e5e5e5",
+            borderRadius: 16,
+            paddingHorizontal: 16,
+            paddingVertical: 8,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.05,
+            shadowRadius: 4,
+            elevation: 2,
           }}
         >
-          <View
+          <TextInput
+            value={input}
+            onChangeText={setInput}
+            placeholder={
+              modelLoading
+                ? "Loading model..."
+                : !selectedModel
+                  ? "Select a model first..."
+                  : "Send a message..."
+            }
+            placeholderTextColor="#999"
             style={{
-              flexDirection: "row",
-              alignItems: "flex-end",
-              backgroundColor: "#ffffff",
-              borderWidth: 1,
-              borderColor: "#e5e5e5",
-              borderRadius: 16,
+              flex: 1,
+              fontSize: 15,
+              color: "#1a1a1a",
+              paddingVertical: 8,
+              paddingRight: 12,
+              maxHeight: 120,
+            }}
+            multiline
+            editable={!!selectedModel && !modelLoading && !loading}
+            returnKeyType="send"
+          />
+
+          <Pressable
+            onPress={sendMessage}
+            disabled={
+              !input.trim() || !selectedModel || modelLoading || loading
+            }
+            style={({ pressed }) => ({
+              backgroundColor:
+                !input.trim() || !selectedModel || modelLoading || loading
+                  ? "#e5e5e5"
+                  : pressed
+                    ? "#0052a3"
+                    : "#0066cc",
               paddingHorizontal: 16,
               paddingVertical: 8,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.05,
-              shadowRadius: 4,
-              elevation: 2,
-            }}
+              borderRadius: 12,
+              minWidth: modelLoading ? 124 : 60,
+              alignItems: "center",
+              justifyContent: "center",
+            })}
           >
-            <TextInput
-              value={input}
-              onChangeText={setInput}
-              placeholder={
-                modelLoading
-                  ? "Loading model..."
-                  : !selectedModel
-                    ? "Select a model first..."
-                    : "Send a message..."
-              }
-              placeholderTextColor="#999"
+            <Text
               style={{
-                flex: 1,
-                fontSize: 15,
-                color: "#1a1a1a",
-                paddingVertical: 8,
-                paddingRight: 12,
-                maxHeight: 120,
-              }}
-              multiline
-              editable={!!selectedModel && !modelLoading}
-              returnKeyType="send"
-            />
-
-            <Pressable
-              onPress={sendMessage}
-              disabled={!input.trim() || !selectedModel || modelLoading || loading}
-              style={({ pressed }) => ({
-                backgroundColor:
+                color:
                   !input.trim() || !selectedModel || modelLoading || loading
-                    ? "#e5e5e5"
-                    : pressed
-                      ? "#0052a3"
-                      : "#0066cc",
-                paddingHorizontal: 16,
-                paddingVertical: 8,
-                borderRadius: 12,
-                minWidth: modelLoading ? 124 : 60,
-                alignItems: "center",
-                justifyContent: "center",
-              })}
+                    ? "#999"
+                    : "#ffffff",
+                fontWeight: "600",
+                fontSize: 14,
+              }}
             >
-              <Text
-                style={{
-                  color:
-                    !input.trim() || !selectedModel || modelLoading || loading
-                      ? "#999"
-                      : "#ffffff",
-                  fontWeight: "600",
-                  fontSize: 14,
-                }}
-              >
-                {modelLoading ? "Loading model..." : "Send"}
-              </Text>
-            </Pressable>
-          </View>
+              {modelLoading ? "Loading model..." : "Send"}
+            </Text>
+          </Pressable>
         </View>
-      </KeyboardAvoidingView>
-    </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 

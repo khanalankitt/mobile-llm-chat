@@ -32,28 +32,40 @@ export async function loadModel(modelPath: string) {
   }
 }
 
-export async function generateResponse(message: string) {
+export async function generateResponseStream(
+  message: string,
+  onToken: (text: string) => void,
+) {
   if (!context) {
     throw new Error("Model not loaded");
   }
 
-  const result = await context.completion({
-    messages: [
-      {
-        role: "system",
-        content: "You are a helpful AI assistant.",
-      },
+  const result = await context.completion(
+    {
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful AI assistant.",
+        },
 
-      {
-        role: "user",
-        content: message,
-      },
-    ],
+        {
+          role: "user",
+          content: message,
+        },
+      ],
 
-    n_predict: 512,
+      n_predict: 512,
 
-    temperature: 0.7,
-  });
+      temperature: 0.7,
+    },
+    (data) => {
+      const token = typeof data.token === "string" ? data.token : "";
+
+      if (token) {
+        onToken(token);
+      }
+    },
+  );
 
   return result.text;
 }
