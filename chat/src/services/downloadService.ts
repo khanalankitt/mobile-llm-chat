@@ -93,15 +93,3 @@ export async function cancelDownload(modelId: string) {
 
   activeDownloads.delete(modelId);
 }
-
-export async function modelExists(filename: string) {
-  const file = `${await getModelsDirectory()}${filename}`;
-
-  const info = await FileSystem.getInfoAsync(file);
-
-  return info.exists;
-}
-
-export async function getModelPath(filename: string) {
-  return `${await getModelsDirectory()}${filename}`;
-}

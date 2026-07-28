@@ -158,10 +158,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               style={{
                 fontSize: 30,
                 fontWeight: "900",
-                color: "#fff",
+                color: "#111827",
               }}
             >
-              ChatJPT{" "}
+              ChatJPT
             </Text>
           </View>
 
@@ -179,7 +179,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                   <Ionicons
                     name={item.icon}
                     size={20}
-                    color={isActive ? "#ffffff" : "#9ca3af"}
+                    color={isActive ? "#2563eb" : "#6b7280"}
                   />
                   <Text
                     style={[styles.navLabel, isActive && styles.navLabelActive]}
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(17,24,39,0.25)",
     zIndex: 10,
   },
   sidebar: {
@@ -216,9 +216,9 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: "#0a0a0a",
+    backgroundColor: "#ffffff",
     borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: "#262626",
+    borderRightColor: "#e5e7eb",
     zIndex: 20,
   },
   safeArea: {
@@ -245,23 +245,24 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   navItemActive: {
-    backgroundColor: "#262626",
+    backgroundColor: "#eff6ff",
   },
   navLabel: {
     fontSize: 14,
-    color: "#9ca3af",
+    color: "#6b7280",
   },
   navLabelActive: {
-    color: "#ffffff",
+    color: "#1d4ed8",
+    fontWeight: "700",
   },
   footer: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#262626",
+    borderTopColor: "#e5e7eb",
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
   footerText: {
     fontSize: 12,
-    color: "#737373",
+    color: "#9ca3af",
   },
 });

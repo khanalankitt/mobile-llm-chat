@@ -9,9 +9,10 @@ import {
   TouchableWithoutFeedback,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getDownloadedModels } from "@/services/modelRepo";
 import { generateResponse, loadModel } from "@/services/llamaService";
 import { ArrowDown } from "lucide-react-native";
@@ -36,7 +37,9 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [modelLoading, setModelLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const loadRequestId = useRef(0);
 
   const refreshModels = useCallback(async () => {
     const data = (await getDownloadedModels()) as Model[];
@@ -46,7 +49,12 @@ export default function ChatScreen() {
         return current;
       }
 
-      return data.some((model) => model.id === current.id) ? current : null;
+      if (data.some((model) => model.id === current.id)) {
+        return current;
+      }
+
+      setModelLoading(false);
+      return null;
     });
   }, []);
 
@@ -59,13 +67,32 @@ export default function ChatScreen() {
   );
 
   async function selectModel(model: Model) {
+    const requestId = loadRequestId.current + 1;
+    loadRequestId.current = requestId;
+
     setSelectedModel(model);
     setShowDropdown(false);
-    await loadModel(model.path);
+    setModelLoading(true);
+
+    try {
+      await loadModel(model.path);
+
+      if (loadRequestId.current === requestId) {
+        setModelLoading(false);
+      }
+    } catch (error) {
+      console.log(error);
+
+      if (loadRequestId.current === requestId) {
+        setSelectedModel(null);
+        setModelLoading(false);
+        Alert.alert("Model failed to load", "Please try selecting the model again.");
+      }
+    }
   }
 
   async function sendMessage() {
-    if (!input.trim() || !selectedModel) return;
+    if (!input.trim() || !selectedModel || modelLoading) return;
 
     const userMessage: Message = {
       role: "user",
@@ -389,7 +416,11 @@ export default function ChatScreen() {
               value={input}
               onChangeText={setInput}
               placeholder={
-                !selectedModel ? "Select a model first..." : "Send a message..."
+                modelLoading
+                  ? "Loading model..."
+                  : !selectedModel
+                    ? "Select a model first..."
+                    : "Send a message..."
               }
               placeholderTextColor="#999"
               style={{
@@ -401,16 +432,16 @@ export default function ChatScreen() {
                 maxHeight: 120,
               }}
               multiline
-              editable={!!selectedModel}
+              editable={!!selectedModel && !modelLoading}
               returnKeyType="send"
             />
 
             <Pressable
               onPress={sendMessage}
-              disabled={!input.trim() || !selectedModel || loading}
+              disabled={!input.trim() || !selectedModel || modelLoading || loading}
               style={({ pressed }) => ({
                 backgroundColor:
-                  !input.trim() || !selectedModel || loading
+                  !input.trim() || !selectedModel || modelLoading || loading
                     ? "#e5e5e5"
                     : pressed
                       ? "#0052a3"
@@ -418,7 +449,7 @@ export default function ChatScreen() {
                 paddingHorizontal: 16,
                 paddingVertical: 8,
                 borderRadius: 12,
-                minWidth: 60,
+                minWidth: modelLoading ? 124 : 60,
                 alignItems: "center",
                 justifyContent: "center",
               })}
@@ -426,14 +457,14 @@ export default function ChatScreen() {
               <Text
                 style={{
                   color:
-                    !input.trim() || !selectedModel || loading
+                    !input.trim() || !selectedModel || modelLoading || loading
                       ? "#999"
                       : "#ffffff",
                   fontWeight: "600",
                   fontSize: 14,
                 }}
               >
-                Send
+                {modelLoading ? "Loading model..." : "Send"}
               </Text>
             </Pressable>
           </View>
