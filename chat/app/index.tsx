@@ -15,6 +15,8 @@ import { useEffect, useState } from "react";
 import { getDownloadedModels } from "@/services/modelRepo";
 import { generateResponse, loadModel } from "@/services/llamaService";
 import { ArrowDown } from "lucide-react-native";
+import { Link, router } from "expo-router";
+
 type Model = {
   id: string;
   name: string;
@@ -90,7 +92,6 @@ export default function ChatScreen() {
         backgroundColor: "#f7f7f8",
       }}
     >
-      {/* Header */}
       <View
         style={{
           paddingHorizontal: 20,
@@ -108,38 +109,58 @@ export default function ChatScreen() {
             justifyContent: "flex-end",
           }}
         >
-          {/* Model Selector - Smaller and professional */}
-          <Pressable
-            onPress={() => setShowDropdown(true)}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              paddingVertical: 6,
-              paddingHorizontal: 12,
-              borderRadius: 8,
-              backgroundColor: "#f5f5f5",
-              borderWidth: 1,
-              borderColor: "#e5e5e5",
-            }}
-          >
-            <Text
+          {models.length === 0 ? (
+            <Pressable
+              onPress={() => router.push("/models")}
               style={{
-                fontSize: 13,
-                fontWeight: "500",
-                color: "#1a1a1a",
-                marginRight: 6,
+                paddingVertical: 8,
+                paddingHorizontal: 14,
+                borderRadius: 8,
+                backgroundColor: "#2563eb",
               }}
             >
-              {selectedModel ? selectedModel.name : "Select model"}
-            </Text>
-            <Text style={{ color: "#666", fontSize: 10 }}>
-              <ArrowDown size={15} />
-            </Text>
-          </Pressable>
+              <Text
+                style={{
+                  color: "#fff",
+                  fontWeight: "600",
+                  fontSize: 13,
+                }}
+              >
+                Download Models
+              </Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => setShowDropdown(true)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 6,
+                paddingHorizontal: 12,
+                borderRadius: 8,
+                backgroundColor: "#f5f5f5",
+                borderWidth: 1,
+                borderColor: "#e5e5e5",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "500",
+                  color: "#1a1a1a",
+                  marginRight: 6,
+                }}
+              >
+                {selectedModel ? selectedModel.name : "Select model"}
+              </Text>
+              <Text style={{ color: "#666", fontSize: 10 }}>
+                <ArrowDown size={15} />
+              </Text>
+            </Pressable>
+          )}
         </View>
       </View>
 
-      {/* Model Dropdown Modal */}
       <Modal
         visible={showDropdown}
         transparent={true}
@@ -197,6 +218,7 @@ export default function ChatScreen() {
                 <FlatList
                   data={models}
                   keyExtractor={(item) => item.id}
+                  ListEmptyComponent={<NoModel />}
                   renderItem={({ item }) => (
                     <Pressable
                       onPress={() => selectModel(item)}
@@ -243,7 +265,6 @@ export default function ChatScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Main Content */}
       {messages.length === 0 ? (
         <View
           style={{
@@ -261,7 +282,9 @@ export default function ChatScreen() {
               marginBottom: 8,
             }}
           >
-            Select a model to get started
+            {models.length === 0
+              ? "Download a model to get started"
+              : "Select a model to get started"}
           </Text>
           <Text
             style={{
@@ -270,7 +293,9 @@ export default function ChatScreen() {
               textAlign: "center",
             }}
           >
-            Choose a model from the dropdown above to begin chatting
+            {models.length === 0
+              ? "Install a model from the Download Models button above to begin chatting"
+              : "Choose a model from the dropdown above to begin chatting"}
           </Text>
         </View>
       ) : (
@@ -319,7 +344,6 @@ export default function ChatScreen() {
         </View>
       )}
 
-      {/* Input Area - ChatGPT/Claude style with KeyboardAvoidingView */}
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 48}
@@ -352,7 +376,7 @@ export default function ChatScreen() {
               value={input}
               onChangeText={setInput}
               placeholder={
-                !selectedModel ? `Select a model first...` : "Send a message..."
+                !selectedModel ? "Select a model first..." : "Send a message..."
               }
               placeholderTextColor="#999"
               style={{
@@ -403,5 +427,20 @@ export default function ChatScreen() {
         </View>
       </KeyboardAvoidingView>
     </View>
+  );
+}
+
+export function NoModel() {
+  return (
+    <Link
+      href="/models"
+      style={{
+        padding: 10,
+        textDecorationLine: "underline",
+        textAlign: "center",
+      }}
+    >
+      Download Models
+    </Link>
   );
 }
