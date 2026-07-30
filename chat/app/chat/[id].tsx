@@ -29,6 +29,7 @@ import { ArrowDown } from "lucide-react-native";
 import { Link, router, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "expo-router";
 import { subscribeToModelStore } from "@/services/modelEvents";
+import SimpleMarkdown from "@/components/markdown";
 
 type Model = {
   id: string;
@@ -555,7 +556,14 @@ export default function ChatScreen() {
                   lineHeight: 22,
                 }}
               >
-                {item.content || "Thinking..."}
+                <SimpleMarkdown
+  content={item.content || "Thinking..."}
+  textColor={item.role === "user" ? "#ffffff" : "#1a1a1a"}
+  codeBackgroundColor={
+    item.role === "user" ? "rgba(255,255,255,0.2)" : "#f0f0f0"
+  }
+/>
+                {/* {item.content || "Thinking..."} */}
               </Text>
             </View>
           )}
