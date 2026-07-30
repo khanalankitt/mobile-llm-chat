@@ -109,6 +109,11 @@ export default function ChatScreen() {
       content: "",
     };
 
+    const MAX_HISTORY_MESSAGES = 12;
+    const conversationHistory = [...messages, userMessage].slice(
+      -MAX_HISTORY_MESSAGES,
+    );
+
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setInput("");
     setLoading(true);
@@ -116,23 +121,26 @@ export default function ChatScreen() {
     let streamedResponse = "";
 
     try {
-      const response = await generateResponseStream(prompt, (token) => {
-        streamedResponse += token;
+      const response = await generateResponseStream(
+        conversationHistory,
+        (token) => {
+          streamedResponse += token;
 
-        setMessages((prev) => {
-          const next = [...prev];
-          const lastIndex = next.length - 1;
+          setMessages((prev) => {
+            const next = [...prev];
+            const lastIndex = next.length - 1;
 
-          if (next[lastIndex]?.role === "assistant") {
-            next[lastIndex] = {
-              ...next[lastIndex],
-              content: next[lastIndex].content + token,
-            };
-          }
+            if (next[lastIndex]?.role === "assistant") {
+              next[lastIndex] = {
+                ...next[lastIndex],
+                content: next[lastIndex].content + token,
+              };
+            }
 
-          return next;
-        });
-      });
+            return next;
+          });
+        },
+      );
 
       if (!streamedResponse.trim() && response) {
         setMessages((prev) => {

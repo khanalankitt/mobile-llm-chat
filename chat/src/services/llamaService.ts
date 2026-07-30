@@ -52,8 +52,13 @@ export function unloadModel() {
   });
 }
 
+export type ChatMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
 export function generateResponseStream(
-  message: string,
+  messages: ChatMessage[],
   onToken: (text: string) => void,
 ) {
   return enqueue(async () => {
@@ -68,10 +73,7 @@ export function generateResponseStream(
             role: "system",
             content: "You are a helpful AI assistant.",
           },
-          {
-            role: "user",
-            content: message,
-          },
+          ...messages,
         ],
         n_predict: 512,
         temperature: 0.7,
